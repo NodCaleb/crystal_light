@@ -31,7 +31,7 @@
 #define TIMER_INTERVAL_MS    1
 #define LED_TIMER_INTERVAL_MS  500
 #define BRIGHT_TIMER_INTERVAL_MS  10
-#define COOLDOWN_INTERVAL_MS  50
+#define COOLDOWN_INTERVAL_MS  1000
 
 int ledTimer = 0;
 int brightTimer = 0;
@@ -57,17 +57,17 @@ int brightnessValues[] = { 0, 173, 169 };
 int brightnessChangeDirection[] = { 0, 0, 1 };
 int sinusBrightness[] = { 0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5, 5, 6, 6, 7, 7, 8, 8, 9, 9, 10, 11, 11, 12, 13, 13, 14, 15, 15, 16, 17, 18, 18, 19, 20, 21, 22, 23, 24, 25, 26, 26, 27, 28, 29, 30, 31, 32, 34, 35, 36, 37, 38, 39, 40, 41, 42, 44, 45, 46, 47, 48, 50, 51, 52, 53, 55, 56, 57, 59, 60, 61, 63, 64, 65, 67, 68, 70, 71, 72, 74, 75, 77, 78, 80, 81, 83, 84, 85, 87, 88, 90, 91, 93, 94, 96, 97, 99, 101, 102, 104, 105, 107, 108, 110, 111, 113, 114, 116, 118, 119, 121, 122, 124, 125, 127, 127, 129, 130, 132, 133, 135, 136, 138, 140, 141, 143, 144, 146, 147, 149, 150, 152, 153, 155, 157, 158, 160, 161, 163, 164, 166, 167, 169, 170, 171, 173, 174, 176, 177, 179, 180, 182, 183, 184, 186, 187, 189, 190, 191, 193, 194, 195, 197, 198, 199, 201, 202, 203, 204, 206, 207, 208, 209, 210, 212, 213, 214, 215, 216, 217, 218, 219, 220, 222, 223, 224, 225, 226, 227, 228, 228, 229, 230, 231, 232, 233, 234, 235, 236, 236, 237, 238, 239, 239, 240, 241, 241, 242, 243, 243, 244, 245, 245, 246, 246, 247, 247, 248, 248, 249, 249, 250, 250, 250, 251, 251, 251, 252, 252, 252, 253, 253, 253, 253, 253, 253, 254, 254, 254, 254, 255, 255, 255 };
 
-void TimerHandler(void)
+void timerHandler(void)
 {
   ledTimer++;
   if (ledTimer == LED_TIMER_INTERVAL_MS){
-    LedTimerTick();
+    ledTimerTick();
     ledTimer = 0;
   }
   brightTimer++;
   if (brightTimer == BRIGHT_TIMER_INTERVAL_MS){
     if (colorCycling){
-      BrightTimerTick();
+      brightTimerTick();
     }    
     brightTimer = 0;
   }
@@ -78,7 +78,7 @@ void TimerHandler(void)
   // Serial.println(brightnessValues[0]);
 }
 
-void LedTimerTick(void){
+void ledTimerTick(void){
   //Colors cycle
   // for (byte i = 0; i < 3; i++){
   //   ShiftColor(i);
@@ -91,12 +91,12 @@ void ShiftColor(int i){
   setColor(i, colorIndices[i]);
 }
 
-void RandomColor(int i){
+void randomColor(int i){
   colorIndices[i] = random(7);
   setColor(i, colorIndices[i]);
 }
 
-void BrightTimerTick(void){
+void brightTimerTick(void){
   //Brightness cycle
   // Serial.println(brightnessValues[0]);
   for (byte i = 0; i < 3; i++){
@@ -104,8 +104,8 @@ void BrightTimerTick(void){
       brightnessValues[i]++;
       if (brightnessValues[i] == 255){
         brightnessChangeDirection[i] = 1;
-        ShiftColor(i);
-        //RandomColor(i);
+        //ShiftColor(i);
+        randomColor(i);
       }
     }
     else{
@@ -139,7 +139,7 @@ void setup() {
 
   ITimer1.init();
 
-  ITimer1.attachInterruptInterval(TIMER_INTERVAL_MS, TimerHandler);
+  ITimer1.attachInterruptInterval(TIMER_INTERVAL_MS, timerHandler);
 
   attachInterrupt(digitalPinToInterrupt(inputPin0), button, FALLING);
 
@@ -157,12 +157,17 @@ void loop() {
 
   if(!digitalRead(inputPin0) && inputCooldown0 == 0){
     inputCooldown0 = COOLDOWN_INTERVAL_MS;
-    Serial.println(0);
+    colorCycling = 1;
   }
 
   if(!digitalRead(inputPin1) && inputCooldown1 == 0){
     inputCooldown1 = COOLDOWN_INTERVAL_MS;
-    Serial.println(1);
+    if (!colorCycling){
+      for (byte i = 0; i < 3; i++){
+        randomColor(i);
+      }
+    }
+    colorCycling = 0;    
   }
 
   displayColors(); 
@@ -191,9 +196,17 @@ void setColor(byte ledIndex, byte colorIndex){
 void displayColors(){
   
   //Brightness from 255 - off to 0 - max brightness
-  analogWrite(brightness0, sinusBrightness[brightnessValues[0]]);
-  analogWrite(brightness1, sinusBrightness[brightnessValues[1]]);
-  analogWrite(brightness2, sinusBrightness[brightnessValues[2]]);
+  if (colorCycling){
+    analogWrite(brightness0, sinusBrightness[brightnessValues[0]]);
+    analogWrite(brightness1, sinusBrightness[brightnessValues[1]]);
+    analogWrite(brightness2, sinusBrightness[brightnessValues[2]]);
+  }
+  else{
+    analogWrite(brightness0, 0);
+    analogWrite(brightness1, 0);
+    analogWrite(brightness2, 0);
+  }
+  
 
   digitalWrite(latchPin, LOW);                                        // ставим LOW на "защёлку"
   shiftOut(dataPin, clockPin, MSBFIRST, data1); // отправляем байт в двоичном виде
