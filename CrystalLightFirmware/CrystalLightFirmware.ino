@@ -20,7 +20,8 @@
 #define dataPin       9  // пин подключен к входу DS (14)
 #define latchPin      10  // пин подключен к входу ST_CP (12)
 #define clockPin      11  // пин подключен к входу SH_CP (11)
-#define interruptPin  2
+#define inputPin0     2
+#define inputPin1     4
 #define brightness0   6
 #define brightness1   5
 #define brightness2   3
@@ -30,9 +31,13 @@
 #define TIMER_INTERVAL_MS    1
 #define LED_TIMER_INTERVAL_MS  500
 #define BRIGHT_TIMER_INTERVAL_MS  10
+#define COOLDOWN_INTERVAL_MS  50
 
 int ledTimer = 0;
 int brightTimer = 0;
+byte inputCooldown0 = 0;
+byte inputCooldown1 = 0;
+byte colorCycling = 1;
 
 byte data0 = 0x32;
 byte data1 = 0x01;
@@ -61,9 +66,14 @@ void TimerHandler(void)
   }
   brightTimer++;
   if (brightTimer == BRIGHT_TIMER_INTERVAL_MS){
-    BrightTimerTick();
+    if (colorCycling){
+      BrightTimerTick();
+    }    
     brightTimer = 0;
   }
+
+  if (inputCooldown0 > 0) inputCooldown0--;
+  if (inputCooldown1 > 0) inputCooldown1--;
 
   // Serial.println(brightnessValues[0]);
 }
@@ -82,7 +92,7 @@ void ShiftColor(int i){
 }
 
 void RandomColor(int i){
-  colorIndices[i] == random(6);
+  colorIndices[i] = random(7);
   setColor(i, colorIndices[i]);
 }
 
@@ -95,6 +105,7 @@ void BrightTimerTick(void){
       if (brightnessValues[i] == 255){
         brightnessChangeDirection[i] = 1;
         ShiftColor(i);
+        //RandomColor(i);
       }
     }
     else{
@@ -112,8 +123,8 @@ void setup() {
   // if analog input pin 0 is unconnected, random analog
   // noise will cause the call to randomSeed() to generate
   // different seed numbers each time the sketch runs.
-  // randomSeed() will then shuffle the random function.
-  // randomSeed(analogRead(0));
+  //randomSeed(255);// will then shuffle the random function.
+  randomSeed(analogRead(0));
 
   // устанавливаем режим работы пинов
   pinMode(latchPin, OUTPUT);
@@ -122,13 +133,15 @@ void setup() {
   pinMode(brightness0, OUTPUT);
   pinMode(brightness1, OUTPUT);
   pinMode(brightness2, OUTPUT);
-  pinMode(interruptPin, INPUT_PULLUP);
+  pinMode(inputPin0, INPUT_PULLUP);
+  pinMode(inputPin1, INPUT_PULLUP);
+  pinMode(0, INPUT);
 
   ITimer1.init();
 
   ITimer1.attachInterruptInterval(TIMER_INTERVAL_MS, TimerHandler);
 
-  attachInterrupt(digitalPinToInterrupt(interruptPin), button, FALLING);
+  attachInterrupt(digitalPinToInterrupt(inputPin0), button, FALLING);
 
   // ставим HIGH на "защёлку", чтобы регистр не принимал сигнал
   digitalWrite(latchPin, HIGH);
@@ -140,6 +153,17 @@ void setup() {
 }
 
 void loop() {
+  //Serial.println(random(7));
+
+  if(!digitalRead(inputPin0) && inputCooldown0 == 0){
+    inputCooldown0 = COOLDOWN_INTERVAL_MS;
+    Serial.println(0);
+  }
+
+  if(!digitalRead(inputPin1) && inputCooldown1 == 0){
+    inputCooldown1 = COOLDOWN_INTERVAL_MS;
+    Serial.println(1);
+  }
 
   displayColors(); 
   // delay(500);
